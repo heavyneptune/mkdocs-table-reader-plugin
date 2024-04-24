@@ -10,6 +10,8 @@ from mkdocs_table_reader_plugin.safe_eval import parse_argkwarg
 from mkdocs_table_reader_plugin.readers import READERS
 from mkdocs_table_reader_plugin.markdown import fix_indentation
 
+import pandas.errors as pderrors
+
 logger = logging.getLogger("mkdocs.plugins")
 
 class TableReaderPlugin(BasePlugin):
@@ -121,8 +123,16 @@ class TableReaderPlugin(BasePlugin):
                 # Load the table
                 # note we use the first valid file paths,
                 # where we first search the 'data_path' and then the page's directory.
-                markdown_table = function(valid_file_paths[0], *pd_args, **pd_kwargs)
-
+                try:
+                    markdown_table = function(valid_file_paths[0], *pd_args, **pd_kwargs)
+                except (pd.errors.EmptyDataError, pd.errors.ParserError, pd.errors.DataError)as e:
+                    #handle panda errors
+                    if self.config.get("allow_missing_files"):
+                        msg = f"[table-reader-plugin]: The data file '{input_file_path}' is malformed or empty. Pandas EmptyDataError {e}"
+                        markdown_table=f"[table-reader-plugin]: The data file '{input_file_path}' is malformed or empty."
+                        logger.warning(msg)
+                    else:
+                        raise e
                 markdown_table = fix_indentation(leading_spaces, markdown_table)
 
                 # Insert markdown table
